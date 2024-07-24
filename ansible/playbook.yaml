@@ -1,0 +1,102 @@
+---
+- name: Upload and execute ISMS scripts on each pod
+  hosts: localhost
+  vars:
+    namespace: thm-app
+    localhost_path: "/home/root/isms"
+    remote_path: "/tmp/isms"
+    script_name: "isms.sh"
+
+  tasks:
+    - name: Install Kubernetes collection
+      ansible.builtin.ansible_galaxy:
+        command: install
+        name: kubernetes.core
+
+    - name: Get all deployments in the namespace
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        namespace: "{{ namespace }}"
+      register: deployments
+
+    - name: Get pods for each deployment
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: "{{ namespace }}"
+        label_selectors:
+          - app={{ item.metadata.name }}
+      register: pods
+      loop: "{{ deployments.resources }}"  #1 
+      loop_control:
+        label: "{{ item.metadata.name }}"
+
+    - name: Upload script to the first pod of each deployment
+      kubernetes.core.k8s_cp:
+        namespace: "{{ namespace }}"
+        pod: "{{ item.items[0].metadata.name }}"
+        container: "{{ item.items[0].metadata.labels.app }}"
+        remote_path: "{{ remote_path }}"
+        local_path: "{{ localhost_path }}"
+        no_preserve: True
+        state: to_pod
+      loop: "{{ pods.results }}"
+      loop_control:
+        label: "{{ item.items[0].metadata.name }}"
+  
+    - name: Execute script on pods
+      kubernetes.core.k8s_exec:
+        namespace: "{{ namespace }}"
+        pod: "{{ item.items[0].metadata.name }}"
+        container: "{{ item.items[0].metadata.labels.app }}"
+        command: ["sh", "-c", "{{ remote_path }}/{{ script_name }} > {{ remote_path }}/isms_result.txt"]
+      loop: "{{ pods.results }}"
+      loop_control:
+        label: "{{ item.items[0].metadata.name }}"
+      with_items: "{{ deployments.resources }}"
+
+    # - name: Execute script on pods
+    #   kubernetes.core.k8s_exec:
+    #     namespace: your-namespace
+    #     pod: "{{ item.metadata.name }}"
+    #     container: your-container-name
+    #     command: ["sh", "-c", "/tmp/tomcat_v1.sh > /tmp/tomcat_result.txt"]
+    #   loop: "{{ query('kubernetes.core.k8s_info', 'api_version=apps/v1,kind=Pod,namespace=your-namespace,selector=app={{ item.metadata.name }}') }}"
+    #   loop_control:
+    #     label: "{{ item.metadata.name }}"
+    #   with_items: "{{ deployments.resources }}"
+
+
+    - name: Upload script to the first pod of each deployment
+      kubernetes.core.k8s_cp:
+        namespace: "{{ namespace }}"
+        pod: "{{ item.items[0].metadata.name }}"
+        container: "{{ item.items[0].metadata.labels.app }}"
+        remote_path: "{{ remote_path }}"
+        local_path:"{{ localhost_path }}"
+        no_preserve: True
+        state: from_pod
+      loop: "{{ pods.results }}"
+      loop_control:
+        label: "{{ item.items[0].metadata.name }}"
+  
+    # - name: Fetch result file from pods
+    #   kubernetes.core.k8s_exec:
+    #     namespace: thm-app
+    #     pod: "{{ item.metadata.name }}"
+    #     container: your-container-name
+    #     command: ["sh", "-c", "cat /tmp/tomcat_result.txt"]
+    #   register: result_file
+    #   loop: "{{ query('kubernetes.core.k8s_info', 'api_version=apps/v1,kind=Pod,namespace=your-namespace,selector=app={{ item.metadata.name }}') }}"
+    #   loop_control:
+    #     label: "{{ item.metadata.name }}"
+    #   with_items: "{{ deployments.resources }}"
+
+    # - name: Save result to local file
+    #   ansible.builtin.copy:
+    #     content: "{{ item.stdout }}"
+    #     dest: "./tomcat_result_{{ item.item.metadata.name }}.txt"
+    #   loop: "{{ result_file.results }}"
+    #   loop_control:
+    #     label: "{{ item.item.metadata.name }}"
