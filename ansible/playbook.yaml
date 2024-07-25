@@ -4,9 +4,9 @@
   vars:
     namespace: thm-app
       #localhost_path: "/home/root/isms"
-    localhost_path: "/root/2024.07.isms-ansible/ansible/isms"
+    localhost_path: "/root/2024.07.isms-ansible/ansible"
     remote_path: "/tmp"
-    script_name: "isms-a.sh"
+    script_name: "isms.sh"
     
   tasks:
     - name: Get all deployments in the namespace
@@ -55,7 +55,7 @@
         pod: "{{ item.name }}"
         container: "{{ item.app_label }}"
         remote_path: "{{ remote_path }}"
-        local_path: "{{ localhost_path }}"
+        local_path: "{{ localhost_path }}/isms"
         no_preserve: True
         state: to_pod
       loop: "{{ pod_list }}"
@@ -65,17 +65,16 @@
         namespace: "{{ namespace }}"
         pod: "{{ item.name }}"
         container: "{{ item.app_label }}"
-          #command: ["sh", "-c", "sh {{ remote_path }}/{{ script_name }}"]
         command: "sh {{ remote_path }}/isms/{{ script_name }}" 
       loop: "{{ pod_list }}"
 
-    - name: Upload script to the first pod of each deployment
+    - name: Upload files from the pods to the host
       kubernetes.core.k8s_cp:
         namespace: "{{ namespace }}"
         pod: "{{ item.name }}"
         container: "{{ item.app_label }}"
-        remote_path: "{{ remote_path }}/result"
-        local_path: "{{ localhost_path }}/result"
+        remote_path: "{{ remote_path }}/isms/result"
+        local_path: "{{ localhost_path }}/result/{{ item.name }}"
         no_preserve: True
         state: from_pod
       loop: "{{ pod_list }}"
