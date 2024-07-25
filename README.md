@@ -46,3 +46,11 @@ ansible-playbook ./ansible/playbook.yaml --syntax-check
 ```
 
 # 📌 ansible playbook 실행 (localhost)
+
+```jsx
+# ansible playbook 실행 
+ansible-playbook ./ansible/playbook.yaml 
+
+# ansible playbook verbose 실행 
+ansible-playbook ./ansible/playbook.yaml --verbose
+```
